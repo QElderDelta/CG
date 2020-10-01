@@ -1,0 +1,17 @@
+#ifndef INPUTBAR_H
+#define INPUTBAR_H
+
+#include <QHBoxLayout>
+#include <QWidget>
+
+QT_BEGIN_NAMESPACE
+namespace Ui { class MainWindow;}
+QT_END_NAMESPACE
+
+class InputBar : public QWidget {
+    Q_OBJECT
+public:
+    InputBar(QString text, int numberOf)
+};
+
+#endif // INPUTBAR_H

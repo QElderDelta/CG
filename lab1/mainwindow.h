@@ -1,6 +1,8 @@
 #ifndef MAINWINDOWz_H
 #define MAINWINDOW_H
 
+#include <limits>
+
 #include <QDebug>
 #include <QDockWidget>
 #include <QGraphicsScene>
@@ -15,6 +17,8 @@
 #include <QVBoxLayout>
 #include <QtMath>
 
+#include "inputbox.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow;}
 QT_END_NAMESPACE
@@ -25,16 +29,28 @@ class MainWindow : public QMainWindow
 protected:
     void resizeEvent(QResizeEvent* event);
 private:
+    const static int DEFAULT_SCALE = 50;
+
+    int currentXScale_ = DEFAULT_SCALE;
+    int currentYScale_ = DEFAULT_SCALE;
+    int parameterValue_ = 0;
+    int numberOfPoints_ = 1000;
+    int rotationAngle_ = 0;
+
     QGraphicsView* view;
     QGraphicsScene* scene;
     QVector<QGraphicsItem*> points;
-    int currentScale = 5;
-    int parameterValue = 0;
+
     void addGridText(QGraphicsScene* scene, int cord, bool isXAxis, QFont font);
-    int getNumberOfDigits(int number) const;
-private slots:
-    void resizeGraph(int scale);
     void drawPlot();
+    int  getNumberOfDigits(int number) const;
+    void resizePlot();
+private slots:
+    void approxChanged(int numberOfPoints);
+    void parameterChanged(int paramter);
+    void rotationAngleChanged(double angle);
+    void xScaleChanged(int xScale);
+    void yScaleChanged(int yScale);
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
