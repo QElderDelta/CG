@@ -20,7 +20,6 @@ void View::mouseMoveEvent(QMouseEvent *event)
     if(event->buttons() == Qt::LeftButton) {
         emit rotatePlot(dx);
     } else if(event->buttons() == Qt::RightButton) {
-        qDebug() << dx << dy;
         emit movePlot(dx, dy);
     }
     lastPos = event->localPos();
