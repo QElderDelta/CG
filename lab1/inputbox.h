@@ -8,7 +8,7 @@
 #include <QWidget>
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class MainWindow;}
+namespace Ui { class InputBox;}
 QT_END_NAMESPACE
 
 class InputBox : public QWidget {

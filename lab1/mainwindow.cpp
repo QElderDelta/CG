@@ -1,16 +1,16 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-void MainWindow::resizeEvent(QResizeEvent* event)
-{
+void MainWindow::resizeEvent(QResizeEvent* event) {
     if(parameterValue_) {
         view->fitInView(-parameterValue_, -parameterValue_, parameterValue_ * 2, parameterValue_ * 2,
                         Qt::KeepAspectRatio);
+        currentCenter = {0, 0};
     }
     QMainWindow::resizeEvent(event);
 }
 
-void MainWindow::addGridText(QGraphicsScene* scene, int cord, bool isXAxis, QFont font) {
+void MainWindow::addGridText(QGraphicsScene* scene, int cord, bool isXAxis, const QFont& font) {
     int numberOfDigits = getNumberOfDigits(qAbs(cord)) - 1;
     int xOffset = -5, yOffset = -5;
     auto item = new QGraphicsTextItem;
@@ -53,7 +53,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             addGridText(scene, i, false, q);
         }
     }
-    view = new QGraphicsView(scene);
+    view = new View(scene);
+    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setResizeAnchor(QGraphicsView::AnchorViewCenter);
     view->fitInView(-10, -10, 20, 20, Qt::KeepAspectRatio);
     setCentralWidget(view);
@@ -63,9 +65,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     InputBox* parameterInput = new InputBox("Значение параметра", 1, false, 0,
                                             std::numeric_limits<int>::max(), true, dockWidget);
     InputBox* approx = new InputBox("Апроксимация", 1, false, 1000, 1000, false, dockWidget);
-    InputBox* scale = new InputBox("Масштаб по X, Y", 2, false, 0, 100, true, dockWidget);
-    InputBox* shift = new InputBox("Смещение по X, Y", 2, true, 0, 100, true, dockWidget);
-    InputBox* angle = new InputBox("Угол поворота", 1, true, 0, 359, true, dockWidget);
+    InputBox* scale = new InputBox("Масштаб по X, Y", 2, true, 0,
+                                   std::numeric_limits<int>::max(), false, dockWidget);
+    InputBox* shift = new InputBox("Смещение по X, Y", 2, false, 0, 100, true, dockWidget);
+    InputBox* angle = new InputBox("Угол поворота", 1, true, 0, 359, false, dockWidget);
     inputLayout->addWidget(parameterInput);
     inputLayout->addWidget(approx);
     inputLayout->addWidget(scale);
@@ -76,10 +79,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     addDockWidget(Qt::RightDockWidgetArea, dockWidget);
     connect(parameterInput->findChild<QSpinBox*>(), SIGNAL(valueChanged(int)), this, SLOT(parameterChanged(int)));
     connect(approx->findChild<QSpinBox*>(), SIGNAL(valueChanged(int)), this, SLOT(approxChanged(int)));
-    auto scaleValue = scale->findChildren<QSpinBox*>();
-    connect(scaleValue.front(), SIGNAL(valueChanged(int)), this, SLOT(xScaleChanged(int)));
-    connect(scaleValue.back(), SIGNAL(valueChanged(int)), this, SLOT(yScaleChanged(int)));
+    auto scaleValue = scale->findChildren<QDoubleSpinBox*>();
+    connect(scaleValue.front(), SIGNAL(valueChanged(double)), this, SLOT(xScaleChanged(double)));
+    connect(scaleValue.back(), SIGNAL(valueChanged(double)), this, SLOT(yScaleChanged(double)));
+    auto shiftValue = shift->findChildren<QSpinBox*>();
+    connect(shiftValue.front(), SIGNAL(valueChanged(int)), this, SLOT(xChanged(int)));
+    connect(shiftValue.back(), SIGNAL(valueChanged(int)), this, SLOT(yChanged(int)));
+    connect(this, SIGNAL(changeXScaleBox(double)), scaleValue.front(), SLOT(setValue(double)));
+    connect(this, SIGNAL(changeYScaleBox(double)), scaleValue.back(), SLOT(setValue(double)));
+    connect(this, SIGNAL(changeRotationBox(double)), angle->findChild<QDoubleSpinBox*>(), SLOT(setValue(double)));
+    connect(this, SIGNAL(changeXBox(int)), shiftValue.front(), SLOT(setValue(int)));
+    connect(this, SIGNAL(changeYBox(int)), shiftValue.back(), SLOT(setValue(int)));
     connect(angle->findChild<QDoubleSpinBox*>(), SIGNAL(valueChanged(double)), this, SLOT(rotationAngleChanged(double)));
+    connect(view, SIGNAL(changedScale(bool)), this, SLOT(changeScale(bool)));
+    connect(view, SIGNAL(rotatePlot(int)), this, SLOT(mouseRotate(int)));
+    connect(view, SIGNAL(movePlot(int,int)), this, SLOT(changeCenter(int,int)));
 }
 
 int MainWindow::getNumberOfDigits(int number) const {
@@ -107,19 +121,69 @@ void MainWindow::parameterChanged(int paramter) {
 void MainWindow::rotationAngleChanged(double angle) {
     view->rotate(-rotationAngle_);
     rotationAngle_ = angle;
-    view->rotate(rotationAngle_);
+    view->rotate(angle);
 }
 
-void MainWindow::xScaleChanged(int xScale) {
-    view->scale(1. / currentXScale_, 1. / currentYScale_);
-    currentXScale_ = 50 + xScale;
+void MainWindow::xChanged(int dx) {
+    currentCenter.setX(dx);
+    movePlot();
+}
+
+void MainWindow::yChanged(int dy) {
+    currentCenter.setY(dy);
+    movePlot();
+}
+
+void MainWindow::xScaleChanged(double xScale) {
+    if(xScale) {
+        view->scale(1. / currentXScale_, 1. / currentYScale_);
+        currentXScale_ = xScale * 50;
+        resizePlot();
+    }
+}
+
+void MainWindow::yScaleChanged(double yScale) {
+    if(yScale) {
+        view->scale(1. / currentXScale_, 1. / currentYScale_);
+        currentYScale_ = yScale * 50;
+        resizePlot();
+    }
+}
+
+void MainWindow::changeScale(bool zoomIn) {
+    view->scale(1./ currentXScale_, 1. / currentYScale_);
+    if(zoomIn) {
+        currentXScale_ += 10;
+        currentYScale_ += 10;
+    } else {
+        if(currentXScale_ > 10) {
+            currentXScale_ -= 10;
+        }
+        if(currentYScale_ > 10) {
+            currentYScale_ -= 10;
+        }
+    }
+    emit changeXScaleBox(currentXScale_ / DEFAULT_SCALE);
+    emit changeYScaleBox(currentYScale_ / DEFAULT_SCALE);
     resizePlot();
 }
 
-void MainWindow::yScaleChanged(int yScale) {
-    view->scale(1. / currentXScale_, 1. / currentYScale_);
-    currentYScale_ = 50 + yScale;
-    resizePlot();
+void MainWindow::changeCenter(int dx, int dy) {
+    currentCenter.setX(currentCenter.x() + dx);
+    currentCenter.setY(currentCenter.y() + dy);
+    emit changeXBox(currentCenter.x());
+    emit changeYBox(currentCenter.y());
+    movePlot();
+}
+
+void MainWindow::mouseRotate(int angle) {
+    rotationAngleChanged(rotationAngle_ + angle);
+    emit changeRotationBox((360 + rotationAngle_ + angle) % 360);
+}
+
+void MainWindow::movePlot()
+{
+    view->centerOn(currentCenter.x(), currentCenter.y());
 }
 
 void MainWindow::resizePlot() {
@@ -157,9 +221,10 @@ void MainWindow::drawPlot() {
                          plotPen));
     }
     bottomLineStorage.clear();
-    qDebug() << points.size();
+
     view->fitInView(-parameterValue_, -parameterValue_, parameterValue_ * 2, parameterValue_ * 2,
                     Qt::KeepAspectRatio);
+    currentCenter = {0, 0};
 }
 
 MainWindow::~MainWindow()

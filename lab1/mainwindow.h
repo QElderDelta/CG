@@ -1,5 +1,4 @@
-#ifndef MAINWINDOWz_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <limits>
 
@@ -13,11 +12,14 @@
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSlider>
 #include <QVBoxLayout>
 #include <QtMath>
+#include <QWheelEvent>
 
 #include "inputbox.h"
+#include "view.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow;}
@@ -29,28 +31,42 @@ class MainWindow : public QMainWindow
 protected:
     void resizeEvent(QResizeEvent* event);
 private:
-    const static int DEFAULT_SCALE = 50;
+    const double DEFAULT_SCALE = 50;
 
-    int currentXScale_ = DEFAULT_SCALE;
-    int currentYScale_ = DEFAULT_SCALE;
+    double currentXScale_ = DEFAULT_SCALE;
+    double currentYScale_ = DEFAULT_SCALE;
     int parameterValue_ = 0;
     int numberOfPoints_ = 1000;
     int rotationAngle_ = 0;
 
-    QGraphicsView* view;
     QGraphicsScene* scene;
+    QPoint sceneCenter{0, 0};
+    QPoint currentCenter{0, 0};
     QVector<QGraphicsItem*> points;
+    View* view;
 
-    void addGridText(QGraphicsScene* scene, int cord, bool isXAxis, QFont font);
+    void addGridText(QGraphicsScene* scene, int cord, bool isXAxis, const QFont& font);
     void drawPlot();
     int  getNumberOfDigits(int number) const;
     void resizePlot();
+    void movePlot();
 private slots:
     void approxChanged(int numberOfPoints);
+    void changeScale(bool zoomIn);
+    void changeCenter(int dx, int dy);
+    void mouseRotate(int angle);
     void parameterChanged(int paramter);
     void rotationAngleChanged(double angle);
-    void xScaleChanged(int xScale);
-    void yScaleChanged(int yScale);
+    void xChanged(int dx);
+    void yChanged(int dy);
+    void xScaleChanged(double xScale);
+    void yScaleChanged(double yScale);
+signals:
+    void changeRotationBox(double angle);
+    void changeXBox(int dx);
+    void changeYBox(int dy);
+    void changeXScaleBox(double scale);
+    void changeYScaleBox(double scale);
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
@@ -58,4 +74,3 @@ public:
 private:
     Ui::MainWindow *ui;
 };
-#endif // MAINWINDOW_H
